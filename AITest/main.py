@@ -27,12 +27,12 @@ set_light_values_declaration = {
 }
 
 get_store_sales_information_declaration = {
-    "name": "query_sql_server",
+    "name": "get_store_sales_information",
     "description": "Lấy thông tin doanh thu tại cửa hàng",
 }
 
 data_analysis_to_determine_employee_capacity_declaration = {
-    "name": "analysis_data",
+    "name": "data_analysis_to_determine_employee_capacity",
     "description": "Phân tích data, sau đó xác định năng lực nhân viên",
     "parameters": {
         "type": "object",
@@ -112,7 +112,7 @@ def run_agent(user_prompt: str) -> str:
 
     config = types.GenerateContentConfig(
         tools=[data_analysis_to_determine_employee_capacity, get_store_sales_information],
-        thinking_config=types.ThinkingConfig(thinking_budget=1024)
+        thinking_config=types.ThinkingConfig(thinking_budget=-1)
     )
 
     response = client.models.generate_content(
