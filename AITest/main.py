@@ -92,6 +92,53 @@ def get_store_sales_information() -> str:
 
     except Exception as e:
         return json.dumps({"error": str(e)})
+    
+def get_sales_item_information(item_codes: list[str]) -> str:
+    print(f"Tool Call: get_sales_item_information")
+    """
+    Run stored procedure [dbo].[st_TestAICase2] with @ItemCodes parameter (CSV string)
+    and return results as JSON string.
+    """
+    try:
+        conn = pyodbc.connect(
+            "DRIVER={ODBC Driver 17 for SQL Server};"
+            "SERVER=localhost,2529;"
+            "DATABASE=POS4UCloud_NA3;"
+            "UID=sa;"
+            "PWD=123@AaBb;"
+        )
+        
+        cursor = conn.cursor()
+
+        # Convert list -> CSV
+        csv_codes = ",".join(item_codes)
+
+        # Gọi stored procedure
+        cursor.execute("{CALL dbo.st_TestAICase2 (?)}", (csv_codes,))
+
+        # Lấy tên cột
+        columns = [col[0] for col in cursor.description]
+
+        # Convert kiểu Decimal về float
+        def convert_value(v):
+            if isinstance(v, Decimal):
+                return float(v)
+            return v
+
+        # Mapping rows -> dict
+        rows = [
+            {col: convert_value(val) for col, val in zip(columns, row)}
+            for row in cursor.fetchall()
+        ]
+
+        cursor.close()
+        conn.close()
+
+        return json.dumps(rows, indent=2, ensure_ascii=False)
+
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
 #-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
@@ -102,24 +149,28 @@ tools = types.Tool(
         set_light_values_declaration, 
         get_store_sales_information_declaration,
         data_analysis_to_determine_employee_capacity_declaration
-        ]
+        ] # type: ignore
     )
 
+chat_history = []
+
 def run_agent(user_prompt: str) -> str:
-    contents = [
-        types.Content(role="user", parts=[types.Part(text=user_prompt)])
-    ]
+    global chat_history
+
+    chat_history.append(types.Content(role="user", parts=[types.Part(text=user_prompt)]))
 
     config = types.GenerateContentConfig(
-        tools=[data_analysis_to_determine_employee_capacity, get_store_sales_information],
+        tools=[data_analysis_to_determine_employee_capacity, get_store_sales_information, get_sales_item_information],
         thinking_config=types.ThinkingConfig(thinking_budget=-1)
     )
 
     response = client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=contents,
+        contents=chat_history,
         config=config,
     )
 
-    return response.candidates[0].content.parts[0].text
+    chat_history.append(types.Content(role="model", parts=[response.candidates[0].content.parts[0]])) # type: ignore
+
+    return response.candidates[0].content.parts[0].text # type: ignore
 #-------------------------------------------------------------------------------
